@@ -173,17 +173,17 @@ try:
     import inspect
     from financetoolkit import Toolkit
 
-    dates = ["2025-12-31"]
-    income = pd.DataFrame(
+    # FinanceToolkit requires two index levels: (ticker, line item).
+    income = pd.concat({"POUL": pd.DataFrame(
         {
             "2025-12-31": [15825, 11216, 4609, 2668, 3098, 2890]
         },
         index=["Revenue", "Cost Of Revenue", "Gross Profit", "Operating Income", "EBITDA", "Net Income"],
-    )
-    balance = pd.DataFrame(
+    )})
+    balance = pd.concat({"POUL": pd.DataFrame(
         {"2025-12-31": [4535, 10704.8, 7340.8, 236]},
         index=["Cash And Cash Equivalents", "Total Assets", "Total Stockholders Equity", "Total Debt"],
-    )
+    )})
     sig = inspect.signature(Toolkit.__init__).parameters
     kwargs = {}
     for key, frame in (("income", income), ("balance", balance),
