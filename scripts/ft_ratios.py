@@ -181,8 +181,8 @@ try:
         index=["Revenue", "Cost Of Revenue", "Gross Profit", "Operating Income", "EBITDA", "Net Income"],
     )})
     balance = pd.concat({"POUL": pd.DataFrame(
-        {"2025-12-31": [4535, 10704.8, 7340.8, 236]},
-        index=["Cash And Cash Equivalents", "Total Assets", "Total Stockholders Equity", "Total Debt"],
+        {"2025-12-31": [4535, 10704.8, 7340.8, 7340.8, 236]},
+        index=["Cash And Cash Equivalents", "Total Assets", "Total Stockholders Equity", "Total Equity", "Total Debt"],
     )})
     sig = inspect.signature(Toolkit.__init__).parameters
     kwargs = {}
@@ -201,25 +201,30 @@ try:
     if tk is None:
         tk = Toolkit(["POUL"], api_key="", **kwargs)
     collected = {}
-    for getter in ("get_profitability_ratios", "get_liquidity_ratios",
-                   "get_solvency_ratios", "get_efficiency_ratios", "get_valuation_ratios"):
-        try:
-            fn = getattr(tk.ratios, getter)
-            res = fn()
-            if res is not None and hasattr(res, "columns") and not res.empty:
-                collected[getter] = df_to_jsonable(res)
-        except Exception as e:  # noqa: BLE001
-            collected[getter] = {"_error": f"{type(e).__name__}: {e}"}
-    try:
-        dup = tk.models.get_dupont_analysis()
-        if dup is not None and hasattr(dup, "columns") and not dup.empty:
-            collected["get_dupont_analysis"] = df_to_jsonable(dup)
-    except Exception as e:  # noqa: BLE001
-        collected["get_dupont_analysis"] = {"_error": f"{type(e).__name__}: {e}"}
+    # Version-proof: discover whatever get_* methods this FinanceToolkit exposes.
+    discovered = {}
+    for obj_name in ("ratios", "models"):
+        obj = getattr(tk, obj_name, None)
+        if obj is None:
+            continue
+        methods = [m for m in dir(obj) if m.startswith("get_") and callable(getattr(obj, m, None))]
+        discovered[obj_name] = methods
+        for m in methods:
+            key = f"{obj_name}.{m}"
+            try:
+                res = getattr(obj, m)()
+                if res is not None and hasattr(res, "columns") and not res.empty:
+                    collected[key] = df_to_jsonable(res)
+                elif res is not None and not hasattr(res, "columns"):
+                    collected[key] = {"_value": str(res)[:500]}
+            except Exception as e:  # noqa: BLE001
+                collected[key] = {"_error": f"{type(e).__name__}: {e}"}
+    ft_result_extra = {"discovered_methods": discovered}
     usable = {k: v for k, v in collected.items() if "_error" not in v}
     ft_result = {
         "status": "ok" if usable else "returned_no_usable_ratios",
         "toolkit_kwargs_used": sorted(kwargs.keys()),
+        "discovered_methods": ft_result_extra.get("discovered_methods", {}),
         "collected": collected,
     }
 except Exception as e:  # noqa: BLE001
